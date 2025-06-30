@@ -1,0 +1,32 @@
+{
+  "name": "chrome-extension-transcriber",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Chrome Extension for real-time transcription using transformers.js and Whisper",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "preact": "^10.26.5"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.1",
+    "@types/chrome": "^0.0.326",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5"
+  },
+  "keywords": [
+    "chrome-extension",
+    "transcription",
+    "whisper",
+    "transformers.js",
+    "preact",
+    "vite",
+    "speech-to-text"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
