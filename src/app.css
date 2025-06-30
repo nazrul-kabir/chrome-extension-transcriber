@@ -119,6 +119,23 @@ body {
   line-height: 1.4;
 }
 
+.transcript-segment {
+  margin-bottom: 8px;
+}
+
+.transcript-segment .timestamp {
+  font-size: 0.8em;
+  color: #aaa;
+  margin-right: 8px;
+  display: block; /* Or inline-block if preferred */
+}
+
+.transcript-segment p {
+  margin-top: 2px; /* Adjust as needed */
+  margin-left: 0; /* Align with timestamp or indent as preferred */
+}
+
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
