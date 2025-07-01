@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'preact/hooks'
 import Transcript from './components/Transcript'
-import type { TranscriptSegment } from './components/Transcript' // Updated import style
+import type { TranscriptSegment } from './components/Transcript'
 import Summary from './components/Summary'
 import './app.css'
 import { audioCapture } from './utils/audioCapture'
 import { whisperTranscriber } from './ml/whisper'
+import { textSummarizer } from './ml/summarizer' // Import the summarizer
 
 const TARGET_AUDIO_DURATION_S = 5; // Target 5 seconds of audio per transcription call
 const SAMPLE_RATE = 16000; // Should match AudioCapture settings
@@ -13,9 +14,12 @@ const MAX_BUFFER_LENGTH = SAMPLE_RATE * TARGET_AUDIO_DURATION_S;
 export function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
-  const [summary] = useState('This is a placeholder summary. Summarization will be implemented using T5/BART models.');
-  const [isLoadingModel, setIsLoadingModel] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState('Summary will appear here once generated.'); // Updated initial summary
+  const [isLoadingWhisper, setIsLoadingWhisper] = useState(true); // Renamed for clarity
+  const [isLoadingSummarizer, setIsLoadingSummarizer] = useState(true);
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
 
   // Refs to store mutable values without causing re-renders
   const audioBufferRef = useRef<Float32Array[]>([]);
@@ -24,20 +28,62 @@ export function App() {
   const currentBufferOffsetTimeRef = useRef<number>(0); // Time offset of the current audioBuffer being processed
 
   useEffect(() => {
-    async function loadModel() {
+    async function loadModels() {
       try {
-        setError(null);
-        setIsLoadingModel(true);
+        setTranscriptionError(null);
+        setIsLoadingWhisper(true);
         await whisperTranscriber.loadModel();
-        setIsLoadingModel(false);
+        setIsLoadingWhisper(false);
       } catch (err) {
-        console.error("Error loading model:", err);
-        setError('Failed to load transcription model.');
-        setIsLoadingModel(false);
+        console.error("Error loading Whisper model:", err);
+        setTranscriptionError('Failed to load transcription model.');
+        setIsLoadingWhisper(false);
+      }
+
+      try {
+        setSummaryError(null);
+        setIsLoadingSummarizer(true);
+        await textSummarizer.loadModel();
+        setIsLoadingSummarizer(false);
+      } catch (err) {
+        console.error("Error loading Summarizer model:", err);
+        setSummaryError('Failed to load summarization model.');
+        setIsLoadingSummarizer(false);
       }
     }
-    loadModel();
+    loadModels();
   }, []);
+
+  const handleGenerateSummary = async () => {
+    if (transcriptSegments.length === 0) {
+      setSummaryError("No transcript available to summarize.");
+      setSummary("No transcript available to summarize.");
+      return;
+    }
+    if (!textSummarizer.isModelLoaded() || isLoadingSummarizer) {
+      setSummaryError("Summarization model not ready.");
+      return;
+    }
+
+    const fullTranscript = transcriptSegments.map(seg => seg.text).join(" ");
+    if (fullTranscript.trim().length === 0) {
+      setSummary("Transcript is empty, nothing to summarize.");
+      return;
+    }
+
+    console.log("Generating summary for:", fullTranscript);
+    setSummary("Generating summary...");
+    setSummaryError(null);
+
+    try {
+      const generatedSummary = await textSummarizer.summarize(fullTranscript);
+      setSummary(generatedSummary);
+    } catch (err) {
+      console.error("Error generating summary:", err);
+      setSummaryError("Failed to generate summary.");
+      setSummary("Failed to generate summary.");
+    }
+  };
 
   const processAccumulatedAudio = async () => {
     if (audioBufferRef.current.length === 0) return;
@@ -73,20 +119,21 @@ export function App() {
           }));
           setTranscriptSegments(prevSegments => [...prevSegments, ...newSegments]);
         }
-      } catch (transcriptionError) {
-        console.error('Error during transcription of accumulated audio:', transcriptionError);
-        setError('Error during transcription.');
+      } catch (err) { // Corrected variable name
+        console.error('Error during transcription of accumulated audio:', err);
+        setTranscriptionError('Error during transcription.'); // Corrected state setter
       }
     }
   };
 
   const toggleRecording = async () => {
-    if (!whisperTranscriber.isModelLoaded() && !isLoadingModel) {
-      setError('Transcription model is not loaded yet. Please wait or try reloading.');
+    // Use isLoadingWhisper and setTranscriptionError
+    if (!whisperTranscriber.isModelLoaded() && !isLoadingWhisper) {
+      setTranscriptionError('Transcription model is not loaded yet. Please wait or try reloading.');
       return;
     }
-    if (isLoadingModel) {
-      setError('Model is still loading. Please wait.');
+    if (isLoadingWhisper) {
+      setTranscriptionError('Transcription model is still loading. Please wait.');
       return;
     }
 
@@ -94,13 +141,14 @@ export function App() {
       const newIsRecording = !prevIsRecording;
       if (newIsRecording) {
         // Start recording
-        setError(null);
+        setTranscriptionError(null); // Corrected state setter
+        setSummaryError(null);
+        setSummary("Summary will appear here once generated."); // Reset summary
         audioBufferRef.current = [];
         accumulatedAudioLengthRef.current = 0;
         recordingStartTimeRef.current = performance.now();
         currentBufferOffsetTimeRef.current = 0;
         setTranscriptSegments([]); // Clear previous transcript
-
 
         audioCapture.startRecording(async (audioData) => {
           audioBufferRef.current.push(audioData);
@@ -113,7 +161,7 @@ export function App() {
           console.log('Recording started...');
         }).catch(captureError => {
           console.error('Error starting audio capture:', captureError);
-          setError('Failed to start audio capture. Please check microphone permissions.');
+          setTranscriptionError('Failed to start audio capture. Please check microphone permissions.'); // Corrected state setter
           setIsRecording(false); // Reset recording state if start failed
         });
       } else {
@@ -122,26 +170,42 @@ export function App() {
         // Process any remaining audio in the buffer
         processAccumulatedAudio().then(() => {
             console.log('Recording stopped, final audio processed.');
+            // Automatically generate summary after final audio processing
+            if (transcriptSegments.length > 0 || audioBufferRef.current.length > 0 /* check if there was any audio at all */) {
+                 handleGenerateSummary();
+            }
         });
       }
       return newIsRecording;
     });
   };
 
+  const isLoading = isLoadingWhisper || isLoadingSummarizer; // Combined loading state for UI
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>Chrome Extension Transcriber</h1>
-        <button 
-          className={`record-button ${isRecording ? 'recording' : ''}`}
-          onClick={toggleRecording}
-          disabled={isLoadingModel}
-        >
-          {isLoadingModel ? 'Loading Model...' : (isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording')}
-        </button>
+        <div className="controls">
+          <button
+            className={`record-button ${isRecording ? 'recording' : ''}`}
+            onClick={toggleRecording}
+            disabled={isLoading} // Use combined loading state
+          >
+            {isLoadingWhisper ? 'Loading Transcriber...' : (isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording')}
+          </button>
+          <button
+            className="summary-button"
+            onClick={handleGenerateSummary}
+            disabled={isLoading || isRecording || transcriptSegments.length === 0 || isLoadingSummarizer}
+          >
+            {isLoadingSummarizer ? 'Loading Summarizer...' : '📝 Generate Summary'}
+          </button>
+        </div>
       </header>
       
-      {error && <div className="error-message">{error}</div>}
+      {transcriptionError && <div className="error-message transcript-error">Transcription Error: {transcriptionError}</div>}
+      {summaryError && <div className="error-message summary-error">Summary Error: {summaryError}</div>}
 
       <main className="app-main">
         <Transcript segments={transcriptSegments} />
