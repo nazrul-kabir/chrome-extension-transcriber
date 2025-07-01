@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks'
-import Transcript, { TranscriptSegment } from './components/Transcript' // Updated import
+import Transcript from './components/Transcript'
+import type { TranscriptSegment } from './components/Transcript' // Updated import style
 import Summary from './components/Summary'
 import './app.css'
 import { audioCapture } from './utils/audioCapture'
