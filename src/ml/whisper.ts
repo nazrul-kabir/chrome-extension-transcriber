@@ -10,10 +10,6 @@ export class WhisperTranscriber {
   private model: AutomaticSpeechRecognitionPipeline | null = null
   private isLoading = false
 
-  // To store the full transcript text if needed, or manage chunks
-  private fullTranscript: string = ""
-  private lastProcessedChunkEndTime: number = 0
-
   async loadModel(): Promise<void> {
     if (this.model || this.isLoading) return
 
@@ -37,37 +33,27 @@ export class WhisperTranscriber {
     }
 
     try {
-      const output = await this.model(audioData, { return_timestamps: true }) as any;
+      // The audioData received here is a small chunk from ScriptProcessorNode.
+      // Whisper models generally expect more audio context.
+      const output = await this.model(audioData, {
+        return_timestamps: true,
+        // Potentially add chunk_length_s here if we were sending larger audio files
+        // and wanted the model to internally chunk. For small inputs, this might not be relevant.
+      }) as any; // Cast to any to access .text and .chunks
 
-      // The output now contains { text: "full text", chunks: [{timestamp: [start, end], text: "chunk text"}, ...] }
-      // We might want to process chunks incrementally in a real-time scenario.
-      // For now, we'll return the structure as is, and let the App component handle it.
-      // However, for a live panel, we only want to return *new* chunks.
+      console.log('Raw model output for current audioData:', JSON.stringify(output));
 
-      let newChunks = [];
-      if (output.chunks && Array.isArray(output.chunks)) {
-        newChunks = output.chunks.filter(chunk => {
-          // Ensure chunk and chunk.timestamp exist and timestamp is an array with at least two numbers
-          return chunk && chunk.timestamp && Array.isArray(chunk.timestamp) && chunk.timestamp.length >= 2 && typeof chunk.timestamp[1] === 'number' && chunk.timestamp[1] > this.lastProcessedChunkEndTime;
-        });
+      // If output.text is empty and output.chunks is empty, it means the model
+      // didn't transcribe anything from this specific audioData chunk.
+      // The App.tsx will need to accumulate audio and send larger segments.
 
-        if (newChunks.length > 0) {
-          // Update the last processed chunk's end time
-          const lastNewChunk = newChunks[newChunks.length - 1];
-          if (lastNewChunk && lastNewChunk.timestamp && typeof lastNewChunk.timestamp[1] === 'number') {
-            this.lastProcessedChunkEndTime = lastNewChunk.timestamp[1];
-          }
-        }
-      }
-
-      // Update full transcript - this might be useful if the model re-evaluates context
-      // For simplicity, we'll just append new text based on new chunks for now
-      // this.fullTranscript = output.text;
-
-      return { text: output.text, chunks: newChunks };
+      // Return the direct output; App.tsx will decide how to use it.
+      // If output.chunks is null/undefined, default to empty array.
+      return { text: output.text || "", chunks: output.chunks || [] };
     } catch (error) {
-      console.error('Transcription failed:', error)
-      throw error
+      console.error('Transcription failed for this audio chunk:', error);
+      // Return empty result on error for this chunk to avoid breaking the stream
+      return { text: "", chunks: [] };
     }
   }
 
