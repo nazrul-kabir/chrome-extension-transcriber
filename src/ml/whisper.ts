@@ -20,7 +20,7 @@ export class WhisperTranscriber {
     this.isLoading = true
     console.log('Loading Whisper model...')
     try {
-      this.model = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', { revision: 'main' })
+      this.model = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny')
       
       console.log('Whisper model loaded successfully')
     } catch (error) {
