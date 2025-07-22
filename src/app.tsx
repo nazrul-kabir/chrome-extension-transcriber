@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks'
+import { useState, useEffect, useRef } from 'preact/hooks'
 import Transcript from './components/Transcript'
 import type { TranscriptSegment } from './components/Transcript'
 import Summary from './components/Summary'
