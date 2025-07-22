@@ -1,12 +1,7 @@
-// Placeholder for T5/BART summarization using transformers.js
-// This will be implemented to load and run summarization models in the browser
-
-export interface SummarizationModel {
-  summarize: (text: string) => Promise<string>
-}
+import { pipeline, SummarizationPipeline } from '@xenova/transformers';
 
 export class TextSummarizer {
-  private model: SummarizationModel | null = null
+  private model: SummarizationPipeline | null = null
   private isLoading = false
 
   async loadModel(): Promise<void> {
@@ -16,26 +11,10 @@ export class TextSummarizer {
     console.log('Loading summarization model...')
 
     try {
-      // TODO: Implement actual model loading with transformers.js
-      // Example:
-      // import { pipeline } from '@xenova/transformers'
-      // this.model = await pipeline('summarization', 'Xenova/distilbart-cnn-6-6')
-      
-      // For now, simulate loading
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      this.model = {
-        summarize: async (text: string): Promise<string> => {
-          // Placeholder summarization logic
-          const sentences = text.split('.').filter(s => s.trim().length > 0)
-          const summary = sentences.slice(0, Math.min(2, sentences.length)).join('. ')
-          return summary + (sentences.length > 2 ? '...' : '.')
-        }
-      }
-      
-      console.log('Summarization model loaded successfully')
+      this.model = await pipeline('summarization', 'Xenova/distilbart-cnn-6-6') as SummarizationPipeline;
+      console.log('Summarization model loaded successfully');
     } catch (error) {
-      console.error('Failed to load summarization model:', error)
+      console.error('Failed to load summarization model:', error);
       throw error
     } finally {
       this.isLoading = false
@@ -52,10 +31,18 @@ export class TextSummarizer {
     }
 
     try {
-      return await this.model.summarize(text)
+      // The pipeline returns an array of objects, each with a 'summary_text' field
+      const result = await this.model(text, {
+          min_length: 10, // Example: set min summary length
+          max_length: 50  // Example: set max summary length
+      });
+      if (Array.isArray(result) && result.length > 0 && result[0].summary_text) {
+        return result[0].summary_text;
+      }
+      return "Could not generate summary."; // Fallback if structure is unexpected
     } catch (error) {
-      console.error('Summarization failed:', error)
-      throw error
+      console.error('Summarization failed:', error);
+      throw error;
     }
   }
 

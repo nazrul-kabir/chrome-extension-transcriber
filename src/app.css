@@ -48,7 +48,15 @@ body {
   color: #ffffff;
 }
 
-.record-button {
+.controls {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.record-button,
+.summary-button {
   background: #646cff;
   color: white;
   border: none;
@@ -59,9 +67,25 @@ body {
   transition: background-color 0.3s;
 }
 
-.record-button:hover {
+.record-button:hover,
+.summary-button:hover {
   background: #535bf2;
 }
+
+.record-button:disabled,
+.summary-button:disabled {
+  background: #4a4a4a;
+  cursor: not-allowed;
+}
+
+.summary-button {
+  background: #4CAF50; /* Green for summary */
+}
+
+.summary-button:hover {
+  background: #45a049;
+}
+
 
 .record-button.recording {
   background: #ff4444;
@@ -118,6 +142,33 @@ body {
   font-size: 14px;
   line-height: 1.4;
 }
+
+.transcript-segment {
+  margin-bottom: 8px;
+}
+
+.transcript-segment .timestamp {
+  font-size: 0.8em;
+  color: #aaa;
+  margin-right: 8px;
+  display: block; /* Or inline-block if preferred */
+}
+
+.transcript-segment p {
+  margin-top: 2px; /* Adjust as needed */
+  margin-left: 0; /* Align with timestamp or indent as preferred */
+}
+
+.error-message {
+  color: #ff6b6b;
+  background-color: #2f1818;
+  border: 1px solid #ff6b6b;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 0.9em;
+}
+
 
 @media (prefers-color-scheme: light) {
   :root {

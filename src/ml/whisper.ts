@@ -1,12 +1,13 @@
 // Placeholder for Whisper model loading using transformers.js
 // This will be implemented to load and run Whisper models in the browser
+import { pipeline, AutomaticSpeechRecognitionPipeline } from '@xenova/transformers';
 
 export interface WhisperModel {
   transcribe: (audioData: Float32Array) => Promise<string>
 }
 
 export class WhisperTranscriber {
-  private model: WhisperModel | null = null
+  private model: AutomaticSpeechRecognitionPipeline | null = null
   private isLoading = false
 
   async loadModel(): Promise<void> {
@@ -14,22 +15,8 @@ export class WhisperTranscriber {
 
     this.isLoading = true
     console.log('Loading Whisper model...')
-
     try {
-      // TODO: Implement actual model loading with transformers.js
-      // Example:
-      // import { pipeline } from '@xenova/transformers'
-      // this.model = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en')
-      
-      // For now, simulate loading
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      this.model = {
-        transcribe: async (audioData: Float32Array): Promise<string> => {
-          // Placeholder transcription
-          return `Transcribed text from ${audioData.length} audio samples`
-        }
-      }
+      this.model = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny')
       
       console.log('Whisper model loaded successfully')
     } catch (error) {
@@ -40,16 +27,33 @@ export class WhisperTranscriber {
     }
   }
 
-  async transcribe(audioData: Float32Array): Promise<string> {
+  async transcribe(audioData: Float32Array): Promise<{ text: string, chunks: Array<{ timestamp: [number, number], text: string }> }> {
     if (!this.model) {
       throw new Error('Model not loaded. Call loadModel() first.')
     }
 
     try {
-      return await this.model.transcribe(audioData)
+      // The audioData received here is a small chunk from ScriptProcessorNode.
+      // Whisper models generally expect more audio context.
+      const output = await this.model(audioData, {
+        return_timestamps: true,
+        // Potentially add chunk_length_s here if we were sending larger audio files
+        // and wanted the model to internally chunk. For small inputs, this might not be relevant.
+      }) as any; // Cast to any to access .text and .chunks
+
+      console.log('Raw model output for current audioData:', JSON.stringify(output));
+
+      // If output.text is empty and output.chunks is empty, it means the model
+      // didn't transcribe anything from this specific audioData chunk.
+      // The App.tsx will need to accumulate audio and send larger segments.
+
+      // Return the direct output; App.tsx will decide how to use it.
+      // If output.chunks is null/undefined, default to empty array.
+      return { text: output.text || "", chunks: output.chunks || [] };
     } catch (error) {
-      console.error('Transcription failed:', error)
-      throw error
+      console.error('Transcription failed for this audio chunk:', error);
+      // Return empty result on error for this chunk to avoid breaking the stream
+      return { text: "", chunks: [] };
     }
   }
 
